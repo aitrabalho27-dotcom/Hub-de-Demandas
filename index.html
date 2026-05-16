@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hub de Demandas - v1.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f1f5f9; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
+        .input-padrao {
+            width: 100%; padding: 0.75rem; background-color: #334155; border: 2px solid #475569;
+            border-radius: 0.75rem; color: #f8fafc; outline: none; text-transform: uppercase; font-size: 0.875rem;
+        }
+        .input-padrao:focus { border-color: #10b981; }
+        
+        #appSection { display: none; }
+
+        /* Cores de Status */
+        .status-pendente { border-left: 4px solid #ef4444; } 
+        .status-em-andamento { border-left: 4px solid #f59e0b; } 
+        .status-concluido { border-left: 4px solid #10b981; opacity: 0.6; } 
+        
+        .tag { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 800; }
+        .btn-primary { background-color: #10b981; color: white; transition: all 0.2s; }
+        .btn-primary:hover { background-color: #34d399; }
+    </style>
+</head>
+<body>
+
+    <div id="loginSection" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 p-4">
+        <div class="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-2xl w-full max-w-sm text-center">
+            <h2 class="text-xl font-black mb-6 text-slate-100 uppercase tracking-tight">Demandas Samrello</h2>
+            <input type="password" id="passInput" placeholder="Senha de Acesso" class="w-full p-4 bg-slate-800 border border-slate-700 rounded-xl mb-4 text-center text-white outline-none focus:ring-2 focus:ring-emerald-500">
+            <button onclick="validar()" class="w-full btn-primary font-bold p-4 rounded-xl shadow-lg uppercase">ENTRAR</button>
+        </div>
+    </div>
+
+    <div id="appSection">
+        <div class="min-h-screen p-4 lg:p-8">
+            <div class="max-w-5xl mx-auto space-y-6">
+                
+                <div class="flex justify-between items-center bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                    <div>
+                        <h1 class="text-xl font-black text-emerald-500 uppercase italic">Hub de Demandas</h1>
+                        <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Anotações e Ocorrências</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="exportar()" class="text-[10px] bg-slate-800 p-2 rounded-lg font-bold hover:bg-slate-700">💾 BACKUP</button>
+                        <button onclick="location.reload()" class="text-[10px] bg-red-900/20 text-red-400 p-2 rounded-lg font-bold">SAIR</button>
+                    </div>
+                </div>
+
+                <div class="card p-6 border-t-4 border-t-emerald-600">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="text-[10px] font-bold text-slate-500 ml-2">O QUE PRECISA SER FEITO?</label>
+                            <input type="text" id="i_descricao" placeholder="EX: FALAR COM JUMO SOBRE TERMOPAR" class="input-padrao">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 ml-2">FORNECEDOR / REF</label>
+                            <input type="text" id="i_origem" placeholder="QUEM?" class="input-padrao">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 ml-2">CATEGORIA</label>
+                            <select id="i_tipo" class="input-padrao">
+                                <option value="PROBLEMA">⚠️ PROBLEMA / AVARIA</option>
+                                <option value="COBRANCA">📞 COBRAR RETORNO</option>
+                                <option value="COTACAO">💰 NOVA COTAÇÃO</option>
+                                <option value="OUTROS">📝 OUTROS / NOTAS</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="salvarDemanda()" class="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded-xl uppercase shadow-lg transition-all">
+                        📌 Salvar na Lista
+                    </button>
+                </div>
+
+                <div id="listaDemandas" class="space-y-3 pb-10">
+                    </div>
+
+                <div class="text-center">
+                    <button onclick="limparConcluidos()" class="text-[10px] text-slate-500 hover:text-red-400 font-bold uppercase underline">Limpar itens resolvidos</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let demandas = JSON.parse(localStorage.getItem('db_demandas_compras') || '[]');
+
+        function validar() {
+            if(document.getElementById('passInput').value === "526385") {
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('appSection').style.display = 'block';
+                renderizar();
+            } else { alert("Senha incorreta!"); }
+        }
+
+        // Permitir Enter no campo de senha
+        document.getElementById('passInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') validar();
+        });
+
+        function salvarDemanda() {
+            const desc = document.getElementById('i_descricao').value.trim();
+            const origem = document.getElementById('i_origem').value.trim();
+            const tipo = document.getElementById('i_tipo').value;
+
+            if(!desc) return alert("Preencha a descrição!");
+
+            const nova = {
+                id: Date.now(),
+                descricao: desc.toUpperCase(),
+                origem: origem.toUpperCase() || "GERAL",
+                tipo: tipo,
+                status: 'pendente',
+                data: new Date().toLocaleDateString('pt-BR')
+            };
+
+            demandas.unshift(nova);
+            localStorage.setItem('db_demandas_compras', JSON.stringify(demandas));
+            
+            document.getElementById('i_descricao').value = '';
+            document.getElementById('i_origem').value = '';
+            renderizar();
+        }
+
+        function alterarStatus(id) {
+            const index = demandas.findIndex(d => d.id === id);
+            if(demandas[index].status === 'pendente') demandas[index].status = 'andamento';
+            else if(demandas[index].status === 'andamento') demandas[index].status = 'concluido';
+            else demandas[index].status = 'pendente';
+
+            localStorage.setItem('db_demandas_compras', JSON.stringify(demandas));
+            renderizar();
+        }
+
+        function excluirUm(id) {
+            if(confirm("Excluir definitivamente?")) {
+                demandas = demandas.filter(d => d.id !== id);
+                localStorage.setItem('db_demandas_compras', JSON.stringify(demandas));
+                renderizar();
+            }
+        }
+
+        function limparConcluidos() {
+            if(confirm("Limpar todos os itens resolvidos?")) {
+                demandas = demandas.filter(d => d.status !== 'concluido');
+                localStorage.setItem('db_demandas_compras', JSON.stringify(demandas));
+                renderizar();
+            }
+        }
+
+        function renderizar() {
+            const container = document.getElementById('listaDemandas');
+            if(demandas.length === 0) {
+                container.innerHTML = '<p class="text-center text-slate-600 py-10 font-bold uppercase text-xs">Nenhuma demanda pendente. Bom trabalho!</p>';
+                return;
+            }
+
+            container.innerHTML = demandas.map(d => {
+                const statusClasses = {
+                    'pendente': 'status-pendente bg-slate-800',
+                    'andamento': 'status-em-andamento bg-slate-800 border-l-orange-500',
+                    'concluido': 'status-concluido bg-slate-900 border-l-emerald-500'
+                };
+                
+                const statusTexto = {
+                    'pendente': '🔴 PENDENTE',
+                    'andamento': '🟡 EM TRATATIVA',
+                    'concluido': '🟢 RESOLVIDO'
+                };
+
+                return `
+                    <div class="card p-4 ${statusClasses[d.status]} flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
+                        <div class="flex-1 w-full md:w-auto">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="tag ${d.tipo === 'PROBLEMA' ? 'bg-red-900/50 text-red-200' : 'bg-slate-700 text-slate-300'}">${d.tipo}</span>
+                                <span class="text-[10px] text-slate-500 font-bold">${d.data}</span>
+                            </div>
+                            <h3 class="font-bold text-slate-100 uppercase text-sm">${d.descricao}</h3>
+                            <p class="text-[11px] text-emerald-400 font-bold">REFERÊNCIA: ${d.origem}</p>
+                        </div>
+                        <div class="flex gap-2 items-center w-full md:w-auto justify-between">
+                            <button onclick="alterarStatus(${d.id})" class="flex-1 md:flex-none px-4 py-2 rounded-lg bg-slate-700 text-[10px] font-black hover:bg-slate-600 whitespace-nowrap">
+                                ${statusTexto[d.status]}
+                            </button>
+                            <button onclick="excluirUm(${d.id})" class="p-2 text-slate-600 hover:text-red-400">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function exportar() {
+            const blob = new Blob([JSON.stringify(demandas, null, 2)], {type: 'application/json'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `BACKUP_DEMANDAS_${new Date().toLocaleDateString()}.json`;
+            a.click();
+        }
+    </script>
+</body>
+</html>
